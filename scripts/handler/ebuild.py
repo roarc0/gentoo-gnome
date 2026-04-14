@@ -5,7 +5,6 @@ from glob import glob
 
 from .version import LOCAL_PREFIX, PORTAGE_PREFIX, get_last_local_version, Version
 
-
 async def create_ebuild(atom, version: Version):
     pkg_name = atom.split("/")[1]
     local_path = path.join(path.dirname(LOCAL_PREFIX), atom)

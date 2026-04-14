@@ -1,6 +1,5 @@
 from html.parser import HTMLParser
 
-
 class GParser(HTMLParser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -26,4 +25,3 @@ class GParser(HTMLParser):
     def feed(self, data):
         self.__links = []
         super(GParser, self).feed(data)
-

@@ -13,7 +13,6 @@ PREFIX = 'https://download.gnome.org/sources/'
 PORTAGE_PREFIX = '/var/lib/repos/gentoo'
 LOCAL_PREFIX = path.dirname(path.dirname(__file__))
 
-
 class Version:
     def __init__(self, vstring):
         self.__vstring = vstring.replace("_", ".")
@@ -90,7 +89,6 @@ def is_float(value):
         return True
     except ValueError:
         return False
-
 
 async def get_last_ftp_version(atom, slot=None) -> Optional[Version]:
     async with aiohttp.ClientSession() as session:
