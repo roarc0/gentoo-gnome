@@ -61,10 +61,7 @@ class Version:
         return self.__gt__(other)
 
     def __le__(self, other: 'Version'):
-        if self.__vstring == other.__vstring:
-            return True
-
-        return self.__le__(other)
+        return self == other or self < other
 
     def __lt__(self, other: 'Version'):
         return not self.__ge__(other)
@@ -113,9 +110,6 @@ async def get_last_ftp_version(atom, slot=None) -> Optional[Version]:
             if slot in available_slots:
                 atom_url = PREFIX + atom + "/" + str(slot) + "/"
             else:
-                # print("\n\n\n\n")
-                # print([x.ebuild_version for x in available_slots])
-                # print(slot.ebuild_version)
                 matching_slots = [s for s in available_slots if slot >= s]
                 last_slot = matching_slots[-1] if matching_slots else available_slots[-1]
                 atom_url = PREFIX + atom + "/" + str(last_slot) + "/"
