@@ -2,7 +2,8 @@
 """gup — GNOME overlay update tool.
 
 Subcommands:
-    sync    Check/update atoms from apps (supports dry-run with --pretend)
+        add     Append/validate atoms in apps
+        sync    Check/update atoms from apps (supports dry-run with --pretend)
   digest  Regenerate Manifests via 'ebuild digest'
 """
 import argparse, asyncio, os, re, shutil, subprocess, sys
@@ -62,7 +63,7 @@ def valid_portage_atom(atom):
 
 
 def cmd_add(args):
-    raw = (args.add or '').strip()
+    raw = (args.atom or '').strip()
     if not raw:
         print('Error: --add requires an atom like category/package or category/package:slot')
         return 1
@@ -257,13 +258,15 @@ def cmd_digest(args):
 
 def build_parser():
     p = argparse.ArgumentParser(prog='gup', description='GNOME overlay update tool')
-    p.add_argument('--add', metavar='ATOM', help='Append atom to apps after validating it exists in Gentoo main repo')
-    p.add_argument('--sync', action='store_true', help='Legacy alias for running sync')
     sub = p.add_subparsers(dest='cmd')
+
+    a = sub.add_parser('add', help='Append atom to apps after validating it exists in Gentoo main repo')
+    a.add_argument('atom', help='Atom in category/package or category/package:slot format')
 
     s = sub.add_parser('sync', help='Check FTP and update overlay entries from apps')
     s.add_argument('--pretend', action='store_true', help='Dry run; show what would change without writing files')
     s.add_argument('--bootstrap-missing', action='store_true', help='Allow bootstrapping missing package dirs from Gentoo when FTP is newer')
+
     d = sub.add_parser('digest', help='Run ebuild digest on all ebuilds')
     d.add_argument('directory', nargs='?', help='Directory to scan (default: repo root)')
 
@@ -274,11 +277,8 @@ if __name__ == '__main__':
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.add:
+    if args.cmd == 'add':
         sys.exit(cmd_add(args))
-
-    if args.sync and args.cmd is None:
-        args.cmd = 'sync'
 
     if args.cmd in (None, 'sync'):
         asyncio.run(cmd_sync(args))

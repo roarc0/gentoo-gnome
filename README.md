@@ -36,6 +36,17 @@ Flags:
 
 ---
 
+### `add`
+
+Append one atom to `scripts/apps` after validating it exists in the main Gentoo repo.
+
+```sh
+./gup add net-wireless/gnome-bluetooth
+./gup add net-misc/gnome-connections:50
+```
+
+---
+
 ### `digest`
 
 Regenerate all Manifests via `ebuild digest`.

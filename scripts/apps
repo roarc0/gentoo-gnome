@@ -86,3 +86,6 @@ media-video/showtime:0
 gnome-extra/gnome-browser-connector:0
 dev-libs/libpeas:0
 net-misc/gnome-connections
+gnome-extra/gnome-software
+
+gnome-extra/gnome-boxes
