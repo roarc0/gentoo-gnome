@@ -2,7 +2,6 @@ from os import path, makedirs
 import shutil
 from asyncio.subprocess import PIPE, STDOUT, create_subprocess_shell
 from glob import glob
-from pathlib import Path
 
 from .version import LOCAL_PREFIX, PORTAGE_PREFIX, get_last_local_version, Version
 

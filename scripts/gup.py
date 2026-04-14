@@ -65,7 +65,7 @@ def valid_portage_atom(atom):
 def cmd_add(args):
     raw = (args.atom or '').strip()
     if not raw:
-        print('Error: --add requires an atom like category/package or category/package:slot')
+        print('Error: add requires an atom like category/package or category/package:slot')
         return 1
 
     parts = raw.split(':')
@@ -263,9 +263,9 @@ def build_parser():
     a = sub.add_parser('add', help='Append atom to apps after validating it exists in Gentoo main repo')
     a.add_argument('atom', help='Atom in category/package or category/package:slot format')
 
-    s = sub.add_parser('sync', help='Check FTP and update overlay entries from apps')
-    s.add_argument('--pretend', action='store_true', help='Dry run; show what would change without writing files')
-    s.add_argument('--bootstrap-missing', action='store_true', help='Allow bootstrapping missing package dirs from Gentoo when FTP is newer')
+    sync_cmd = sub.add_parser('sync', help='Check FTP and update overlay entries from apps')
+    sync_cmd.add_argument('--pretend', action='store_true', help='Dry run; show what would change without writing files')
+    sync_cmd.add_argument('--bootstrap-missing', action='store_true', help='Allow bootstrapping missing package dirs from Gentoo when FTP is newer')
 
     d = sub.add_parser('digest', help='Run ebuild digest on all ebuilds')
     d.add_argument('directory', nargs='?', help='Directory to scan (default: repo root)')
