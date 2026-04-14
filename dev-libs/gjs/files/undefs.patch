@@ -1,0 +1,29 @@
+diff --git a/gjs/gjs_pch.hh b/gjs/gjs_pch.hh
+index 564c677c..b6904b71 100644
+--- a/gjs/gjs_pch.hh
++++ b/gjs/gjs_pch.hh
+@@ -84,7 +84,7 @@
+ #include <js/ObjectWithStashedPointer.h>
+ #include <js/Principals.h>
+ #include <js/Printer.h>
+-#include <js/ProfilingCategory.h>
++#include <mozilla/ProfilingCategory.h>
+ #include <js/ProfilingStack.h>
+ #include <js/Promise.h>
+ #include <js/PropertyAndElement.h>
+diff --git a/meson.build b/meson.build
+index 066841bd..71b040d3 100644
+--- a/meson.build
++++ b/meson.build
+@@ -7,6 +7,11 @@ project('gjs', 'cpp', 'c', version: '1.85.2', license: ['MIT', 'LGPL2+'],
+     default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'cpp_eh=none',
+         'c_std=c99', 'warning_level=2', 'b_pch=true' ])
+ 
++add_project_arguments(
++  '-DXP_UNIX',
++  language: ['c', 'cpp']
++)
++
+ # cpp_rtti: SpiderMonkey can be compiled with or without runtime type
+ # information, and the default is without. We must match that option because we
+ # need to derive from SpiderMonkey classes.

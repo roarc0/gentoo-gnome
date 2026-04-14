@@ -10,7 +10,7 @@ ftp_version_regexp = re.compile(r"-(\d+(\.\d+)*(\.rc|\.alpha|\.beta)?(\.\d+)?)")
 ebuild_version_regexp = re.compile(r"-(\d+(\.\d+)*(_rc\d*|_alpha\d*|_beta\d*)?)")
 PREFIX = 'https://download.gnome.org/sources/'
 
-PORTAGE_PREFIX = '/var/db/repos/gentoo'
+PORTAGE_PREFIX = '/var/lib/repos/gentoo'
 LOCAL_PREFIX = path.dirname(path.dirname(__file__))
 
 
@@ -78,7 +78,7 @@ class Version:
 
     @property
     def ebuild_version(self):
-        return self.__vstring.replace(".rc", "_rc").replace("a.", "a").replace(".alpha", "_alpha").replace(".beta", "_beta")
+        return self.__vstring.replace(".rc.", "_rc").replace(".alpha.", "_alpha").replace(".beta.", "_beta").replace(".a.", "_alpha").replace(".b.", "_beta")
 
     def __repr__(self):
         return f"Version({self.__vstring})"
@@ -102,13 +102,15 @@ async def get_last_ftp_version(atom, slot=None) -> Optional[Version]:
             parser.feed(html)
 
         if slot:
-            slot = Version(slot)
+            slot = Version(re.sub(r'-r\d+$', '', slot))
         available_slots = []
         for link in parser.links:
             if not is_float(link):
                 continue
             available_slots.append(Version(link))
         available_slots.sort()
+        if not available_slots:
+            return None
         if slot:
             if slot in available_slots:
                 atom_url = PREFIX + atom + "/" + str(slot) + "/"
@@ -116,8 +118,8 @@ async def get_last_ftp_version(atom, slot=None) -> Optional[Version]:
                 # print("\n\n\n\n")
                 # print([x.ebuild_version for x in available_slots])
                 # print(slot.ebuild_version)
-                # print([x.ebuild_version for x in [s for s in available_slots if slot >= s]])
-                last_slot = [s for s in available_slots if slot >= s][-1]
+                matching_slots = [s for s in available_slots if slot >= s]
+                last_slot = matching_slots[-1] if matching_slots else available_slots[-1]
                 atom_url = PREFIX + atom + "/" + str(last_slot) + "/"
         else:
             last_slot = available_slots[-1]

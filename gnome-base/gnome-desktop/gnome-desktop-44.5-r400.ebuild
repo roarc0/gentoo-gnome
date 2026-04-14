@@ -1,3 +1,4 @@
+#
 # Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
@@ -13,34 +14,33 @@ KEYWORDS="~alpha amd64 ~arm arm64 ~loong ~ppc ~ppc64 ~riscv ~sparc x86"
 IUSE="debug gtk-doc seccomp systemd udev"
 
 COMMON_DEPEND="
-	>=x11-libs/gdk-pixbuf-2.36.5:2[introspection]
-	>=gui-libs/gtk-4.4.0:4[introspection]
-	>=dev-libs/glib-2.53.0:2
-	>=gnome-base/gsettings-desktop-schemas-3.27.0[introspection]
-	x11-misc/xkeyboard-config
-	x11-libs/libxkbcommon
-	app-text/iso-codes
-	systemd? ( sys-apps/systemd:= )
-	udev? ( virtual/libudev:= )
-	seccomp? ( sys-libs/libseccomp )
+>=x11-libs/gdk-pixbuf-2.44.6:2[introspection]
+>=gui-libs/gtk-4.22.0:4[introspection]
+>=dev-libs/glib-2.88.0:2
+>=gnome-base/gsettings-desktop-schemas-3.27.0[introspection]
+x11-misc/xkeyboard-config
+x11-libs/libxkbcommon
+app-text/iso-codes
+systemd? ( sys-apps/systemd:= )
+udev? ( virtual/libudev:= )
+seccomp? ( sys-libs/libseccomp )
 
-	x11-libs/cairo
-	>=dev-libs/gobject-introspection-1.82.0-r2:=
+x11-libs/cairo
+>=dev-libs/gobject-introspection-1.86.0:=
 "
 DEPEND="${COMMON_DEPEND}
-	media-libs/fontconfig
+media-libs/fontconfig
 "
 RDEPEND="${COMMON_DEPEND}
-	seccomp? ( sys-apps/bubblewrap )
-	!<gnome-base/gnome-desktop-${PV}:3
+seccomp? ( sys-apps/bubblewrap )
 "
 BDEPEND="
-	app-text/docbook-xml-dtd:4.1.2
-	>=dev-util/gdbus-codegen-2.80.5-r1
-	gtk-doc? ( >=dev-util/gtk-doc-1.14 )
-	dev-util/itstool
-	>=sys-devel/gettext-0.19.8
-	virtual/pkgconfig
+app-text/docbook-xml-dtd:4.1.2
+>=dev-util/gdbus-codegen-2.88.0
+gtk-doc? ( >=dev-util/gtk-doc-1.14 )
+dev-util/itstool
+>=sys-devel/gettext-0.19.8
+virtual/pkgconfig
 "
 
 src_prepare() {
