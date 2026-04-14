@@ -15,34 +15,24 @@ On first run the venv is created automatically at `scripts/.venv` and `aiohttp` 
 
 ---
 
-### `check` (default)
-
-Check each package in `scripts/apps` against the GNOME FTP server. Automatically
-creates a new ebuild and runs `ebuild digest` when an update is found.
-
-```sh
-./gup.sh
-./gup.sh check
-```
-
----
-
 ### `sync`
 
-Compare overlay versions against the main Gentoo tree and the GNOME FTP server.
+Primary workflow command. It reads `scripts/apps` and for each entry:
+- checks GNOME FTP for newer upstream releases
+- updates/creates ebuilds only when there is a real version upgrade path
+- optionally bootstraps missing package directories from Gentoo when FTP is newer
 
 ```sh
-./gup.sh sync               # report only
-./gup.sh sync --copy        # copy missing packages where FTP > Gentoo tree
-./gup.sh sync --prune       # remove packages already covered by Gentoo tree
-./gup.sh sync --copy --prune
+./gup.sh            # same as sync
+./gup.sh sync
+./gup.sh sync --pretend
+./gup.sh sync --bootstrap-missing
+./gup.sh sync --pretend --bootstrap-missing
 ```
 
-Groups packages into:
-- **Missing** — not in our overlay (copies if FTP is newer than Gentoo)
-- **Ahead** — our version is newer than Gentoo's
-- **Same / Behind** — redundant, can be pruned
-- **Only ours** — not present in the Gentoo tree at all
+Flags:
+- **`--pretend`** — dry run, no files are written
+- **`--bootstrap-missing`** — allow creating missing package dirs from Gentoo as base when FTP is newer
 
 ---
 
