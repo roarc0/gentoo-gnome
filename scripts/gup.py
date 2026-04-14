@@ -29,18 +29,18 @@ END    = '\033[0m'
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
+def normalize_atom_entry(raw_atom, raw_slot):
+    # Support shorthand like "cat/pkg-49.0" by treating the suffix as slot.
+    if raw_slot is not None:
+        return raw_atom, raw_slot
+
+    m = atom_slot_suffix_re.match(raw_atom)
+    if not m:
+        return raw_atom, None
+
+    return f"{m.group('cat')}/{m.group('pkg')}", m.group('slot')
+
 def read_atoms():
-    def normalize_entry(raw_atom, raw_slot):
-        # Support shorthand like "cat/pkg-49.0" by treating the suffix as slot.
-        if raw_slot is not None:
-            return raw_atom, raw_slot
-
-        m = atom_slot_suffix_re.match(raw_atom)
-        if not m:
-            return raw_atom, None
-
-        return f"{m.group('cat')}/{m.group('pkg')}", m.group('slot')
-
     with open(APPS_FILE) as f:
         entries = []
         for line in f:
@@ -50,8 +50,57 @@ def read_atoms():
             parts = line.split(':')
             atom = parts[0]
             slot = parts[1] if len(parts) == 2 else None
-            entries.append(normalize_entry(atom, slot))
+            entries.append(normalize_atom_entry(atom, slot))
     return sorted(entries)
+
+
+def valid_portage_atom(atom):
+    pkg_dir = path.join(PORTAGE_PREFIX, atom)
+    if not path.isdir(pkg_dir):
+        return False
+    return any(name.endswith('.ebuild') for name in os.listdir(pkg_dir))
+
+
+def cmd_add(args):
+    raw = (args.add or '').strip()
+    if not raw:
+        print('Error: --add requires an atom like category/package or category/package:slot')
+        return 1
+
+    parts = raw.split(':')
+    if len(parts) > 2:
+        print(f'Error: invalid atom format: {raw}')
+        return 1
+
+    atom = parts[0].strip()
+    slot = parts[1].strip() if len(parts) == 2 else None
+    if not atom or '/' not in atom:
+        print(f'Error: invalid atom format: {raw}')
+        return 1
+    if slot == '':
+        slot = None
+
+    atom, slot = normalize_atom_entry(atom, slot)
+    if not valid_portage_atom(atom):
+        print(f'Error: {atom} is not available in {PORTAGE_PREFIX}')
+        return 1
+
+    existing = read_atoms()
+    existing_slots = [s for a, s in existing if a == atom]
+    if existing_slots:
+        shown = ', '.join(f'{atom}:{s}' if s else atom for s in sorted({s for s in existing_slots}, key=lambda x: '' if x is None else str(x)))
+        print(f'Already present in apps: {shown}')
+        return 0
+
+    entry = f'{atom}:{slot}' if slot else atom
+    needs_nl = path.exists(APPS_FILE) and path.getsize(APPS_FILE) > 0
+    with open(APPS_FILE, 'a') as f:
+        if needs_nl:
+            f.write('\n')
+        f.write(entry)
+
+    print(f'Added to apps: {entry}')
+    return 0
 
 
 def get_latest_version(prefix, atom):
@@ -187,7 +236,9 @@ async def cmd_sync(args):
         print(f"Error: No config at {APPS_FILE}"); sys.exit(1)
     atoms = read_atoms()
     sem = asyncio.Semaphore(8)
-    await asyncio.gather(*(_check_atom(atom, slot, sem, args.bootstrap_missing, args.pretend) for atom, slot in atoms))
+    bootstrap_missing = getattr(args, 'bootstrap_missing', False)
+    pretend = getattr(args, 'pretend', False)
+    await asyncio.gather(*(_check_atom(atom, slot, sem, bootstrap_missing, pretend) for atom, slot in atoms))
     print(f"\nFinished in {datetime.now() - start}")
 
 # ── digest subcommand ─────────────────────────────────────────────────────────
@@ -206,6 +257,8 @@ def cmd_digest(args):
 
 def build_parser():
     p = argparse.ArgumentParser(prog='gup', description='GNOME overlay update tool')
+    p.add_argument('--add', metavar='ATOM', help='Append atom to apps after validating it exists in Gentoo main repo')
+    p.add_argument('--sync', action='store_true', help='Legacy alias for running sync')
     sub = p.add_subparsers(dest='cmd')
 
     s = sub.add_parser('sync', help='Check FTP and update overlay entries from apps')
@@ -220,6 +273,12 @@ def build_parser():
 if __name__ == '__main__':
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.add:
+        sys.exit(cmd_add(args))
+
+    if args.sync and args.cmd is None:
+        args.cmd = 'sync'
 
     if args.cmd in (None, 'sync'):
         asyncio.run(cmd_sync(args))

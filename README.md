@@ -8,7 +8,7 @@ Gentoo overlay tracking upcoming GNOME releases ahead of the main tree.
 ## Usage
 
 ```sh
-./gup.sh [subcommand] [options]
+./gup [subcommand] [options]
 ```
 
 On first run the venv is created automatically at `scripts/.venv` and `aiohttp` is installed.
@@ -23,11 +23,11 @@ Primary workflow command. It reads `scripts/apps` and for each entry:
 - optionally bootstraps missing package directories from Gentoo when FTP is newer
 
 ```sh
-./gup.sh            # same as sync
-./gup.sh sync
-./gup.sh sync --pretend
-./gup.sh sync --bootstrap-missing
-./gup.sh sync --pretend --bootstrap-missing
+./gup            # same as sync
+./gup sync
+./gup sync --pretend
+./gup sync --bootstrap-missing
+./gup sync --pretend --bootstrap-missing
 ```
 
 Flags:
@@ -41,6 +41,6 @@ Flags:
 Regenerate all Manifests via `ebuild digest`.
 
 ```sh
-./gup.sh digest             # scan entire repo
-./gup.sh digest path/to/pkg # scan a specific directory
+./gup digest             # scan entire repo
+./gup digest path/to/pkg # scan a specific directory
 ```
