@@ -1,5 +1,8 @@
 # gnome-next
 
+* This is the experimental gnome overlay, USE AT YOUR OWN RISK.
+* It will probably break your deptree, your system, and your backbone.
+
 Gentoo overlay tracking upcoming GNOME releases ahead of the main tree.
 
 ## Usage
