@@ -5,6 +5,7 @@ Subcommands:
         add     Append/validate atoms in apps
         sync    Check/update atoms from apps (supports dry-run with --pretend)
   digest  Regenerate Manifests via 'ebuild digest'
+  diff    Open VS Code diff between our latest ebuild and the Gentoo repo's latest
 """
 import argparse, asyncio, os, re, shutil, subprocess, sys
 from datetime import datetime
@@ -242,6 +243,49 @@ async def cmd_sync(args):
     await asyncio.gather(*(_check_atom(atom, slot, sem, bootstrap_missing, pretend) for atom, slot in atoms))
     print(f"\nFinished in {datetime.now() - start}")
 
+# ── diff subcommand ──────────────────────────────────────────────────────────
+
+def cmd_diff(args):
+    atom = args.atom.strip()
+    if '/' not in atom:
+        print(f'Error: atom must be category/package, got: {atom}')
+        return 1
+
+    pkg_name = atom.split('/')[1]
+
+    local_ver = get_latest_version(OVERLAY_ROOT, atom)
+    if local_ver is None:
+        print(f'Error: no local ebuild found for {atom} in {OVERLAY_ROOT}')
+        return 1
+
+    gentoo_ver = get_latest_version(PORTAGE_PREFIX, atom)
+    if gentoo_ver is None:
+        print(f'Error: no Gentoo ebuild found for {atom} in {PORTAGE_PREFIX}')
+        return 1
+
+    if not shutil.which('code'):
+        print('Error: code (VS Code) not found in PATH')
+        return 1
+
+    local_ebuilds = glob(path.join(OVERLAY_ROOT, atom, f'{pkg_name}-{local_ver}*.ebuild'))
+    gentoo_ebuilds = glob(path.join(PORTAGE_PREFIX, atom, f'{pkg_name}-{gentoo_ver}*.ebuild'))
+
+    if not local_ebuilds:
+        print(f'Error: could not locate local ebuild file for version {local_ver}')
+        return 1
+    if not gentoo_ebuilds:
+        print(f'Error: could not locate Gentoo ebuild file for version {gentoo_ver}')
+        return 1
+
+    local_file  = sorted(local_ebuilds)[-1]
+    gentoo_file = sorted(gentoo_ebuilds)[-1]
+
+    print(f'Opening diff:')
+    print(f'  ours:   {local_file}')
+    print(f'  gentoo: {gentoo_file}')
+    subprocess.Popen(['code', '--diff', gentoo_file, local_file])
+    return 0
+
 # ── digest subcommand ─────────────────────────────────────────────────────────
 
 def cmd_digest(args):
@@ -270,6 +314,9 @@ def build_parser():
     d = sub.add_parser('digest', help='Run ebuild digest on all ebuilds')
     d.add_argument('directory', nargs='?', help='Directory to scan (default: repo root)')
 
+    df = sub.add_parser('diff', help='Open VS Code diff between our latest ebuild and the Gentoo repo latest')
+    df.add_argument('atom', help='Atom in category/package format')
+
     return p
 
 
@@ -284,3 +331,5 @@ if __name__ == '__main__':
         asyncio.run(cmd_sync(args))
     elif args.cmd == 'digest':
         cmd_digest(args)
+    elif args.cmd == 'diff':
+        sys.exit(cmd_diff(args))
