@@ -88,5 +88,4 @@ dev-libs/libpeas:0
 net-misc/gnome-connections
 gnome-extra/gnome-software
 gnome-extra/gnome-boxes
-
 dev-util/meld

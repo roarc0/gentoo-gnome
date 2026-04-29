@@ -12,7 +12,7 @@ LICENSE="GPL-2+ CC-BY-SA-3.0"
 # subslot = evd3.(suffix of libevdocument3)-evv3.(suffix of libevview3)
 SLOT="0/evd3.4-evv3.3"
 KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~loong ~ppc ~ppc64 ~riscv ~x86 ~amd64-linux ~x86-linux ~x64-solaris"
-IUSE="X cups djvu dvi gnome keyring gtk-doc +introspection postscript tiff xps wayland"
+IUSE="X cups djvu dvi gnome keyring gtk-doc +introspection +nautilus postscript +preview tiff +thumbnail xps wayland"
 REQUIRED_USE="gtk-doc? ( introspection )"
 
 # atk used in libview
@@ -37,6 +37,7 @@ DEPEND="
 	gnome? ( gnome-base/gnome-desktop:3= )
 	keyring? ( >=app-crypt/libsecret-0.5 )
 	introspection? ( >=dev-libs/gobject-introspection-1:= )
+	nautilus? ( >=gnome-base/nautilus-43 )
 	postscript? ( >=app-text/libspectre-0.2:= )
 	tiff? ( >=media-libs/tiff-4.0:= )
 	xps? ( >=app-text/libgxps-0.2.1:= )
@@ -72,9 +73,9 @@ src_configure() {
 		-Dplatform=gnome
 		-Dprofile=default
 		-Dviewer=true
-		-Dpreviewer=true
-		-Dthumbnailer=true
-		-Dnautilus=false
+		$(meson_use preview previewer)
+		$(meson_use thumbnail thumbnailer)
+		$(meson_use nautilus)
 
 		-Dcomics=enabled
 		$(meson_feature djvu)
