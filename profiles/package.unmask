@@ -1,3 +1,5 @@
+dev-libs/libpeas
+media-gfx/eog
 =media-libs/glycin-2.0.8
 =dev-util/glib-utils-2.88.0
 =dev-libs/glib-2.88.0-r1
