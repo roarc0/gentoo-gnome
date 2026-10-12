@@ -4,6 +4,7 @@
 Subcommands:
         add     Append/validate atoms in apps
         sync    Check/update atoms from apps (supports dry-run with --pretend)
+  clean   Remove older ebuilds and unreferenced files/, asking permission
   digest  Regenerate Manifests via 'ebuild digest'
   diff    Open VS Code diff between our latest ebuild and the Gentoo repo's latest
 """
@@ -286,6 +287,103 @@ def cmd_diff(args):
     subprocess.Popen(['code', '--diff', gentoo_file, local_file])
     return 0
 
+# ── clean subcommand ──────────────────────────────────────────────────────────
+
+def _prompt(msg):
+    try:
+        ans = input(f"{msg} [{GREEN}y{END}/{RED}N{END}] ").strip().lower()
+        return ans == 'y'
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return False
+
+
+def cmd_clean(args):
+    skip_dirs = {'.git', 'scripts', 'profiles', 'metadata'}
+
+    # Collect everything to delete first
+    to_delete_ebuilds = []   # (atom, filepath, keep_ebuild_for_digest)
+    to_delete_files   = []   # (atom, filepath)
+
+    for cat_name in sorted(os.listdir(OVERLAY_ROOT)):
+        if cat_name in skip_dirs or cat_name.startswith('.'):
+            continue
+        cat_dir = path.join(OVERLAY_ROOT, cat_name)
+        if not path.isdir(cat_dir):
+            continue
+
+        for pkg_name in sorted(os.listdir(cat_dir)):
+            pkg_dir = path.join(cat_dir, pkg_name)
+            if not path.isdir(pkg_dir):
+                continue
+
+            ebuilds = glob(path.join(pkg_dir, '*.ebuild'))
+            if not ebuilds:
+                continue
+
+            versioned = []
+            for eb in ebuilds:
+                m = ebuild_re.findall(path.basename(eb))
+                if m:
+                    versioned.append((Version(m[0][0]), eb))
+
+            if not versioned:
+                continue
+
+            versioned.sort(key=lambda x: x[0])
+            latest_version = versioned[-1][0]
+            keep_ebuilds = [eb for ver, eb in versioned if ver == latest_version]
+            digest_eb = sorted(keep_ebuilds)[-1]
+
+            atom = f'{cat_name}/{pkg_name}'
+
+            for ver, eb in versioned:
+                if ver < latest_version:
+                    to_delete_ebuilds.append((atom, eb, digest_eb))
+
+            files_dir = path.join(pkg_dir, 'files')
+            if path.isdir(files_dir):
+                keep_content = ''.join(open(eb).read() for eb in keep_ebuilds)
+                for fname in sorted(os.listdir(files_dir)):
+                    fpath = path.join(files_dir, fname)
+                    if path.isfile(fpath) and fname not in keep_content:
+                        to_delete_files.append((atom, fpath))
+
+    if not to_delete_ebuilds and not to_delete_files:
+        print("Nothing to clean.")
+        return
+
+    # Preview
+    if to_delete_ebuilds:
+        print(f"\n{BOLD}Older ebuilds:{END}")
+        for atom, eb, _ in to_delete_ebuilds:
+            print(f"  {RED}-{END} {CYAN}{atom}{END}/{path.basename(eb)}")
+
+    if to_delete_files:
+        print(f"\n{BOLD}Unreferenced files:{END}")
+        for atom, fpath in to_delete_files:
+            pkg_dir = path.dirname(path.dirname(fpath))
+            print(f"  {RED}-{END} {CYAN}{atom}/files{END}/{path.basename(fpath)}")
+
+    print()
+    if not _prompt(f"Delete all {len(to_delete_ebuilds) + len(to_delete_files)} file(s)?"):
+        print("Aborted.")
+        return
+
+    # Delete and re-digest
+    need_digest = set()
+    for atom, eb, digest_eb in to_delete_ebuilds:
+        os.remove(eb)
+        need_digest.add((atom, digest_eb))
+
+    for _, fpath in to_delete_files:
+        os.remove(fpath)
+
+    for atom, digest_eb in sorted(need_digest):
+        print(f"Re-digesting {atom}...")
+        subprocess.run(['ebuild', digest_eb, 'digest'])
+
+
 # ── digest subcommand ─────────────────────────────────────────────────────────
 
 def cmd_digest(args):
@@ -311,6 +409,8 @@ def build_parser():
     sync_cmd.add_argument('--pretend', action='store_true', help='Dry run; show what would change without writing files')
     sync_cmd.add_argument('--bootstrap-missing', action='store_true', help='Allow bootstrapping missing package dirs from Gentoo when FTP is newer')
 
+    sub.add_parser('clean', help='Preview older ebuilds and unreferenced files/, then delete all at once')
+
     d = sub.add_parser('digest', help='Run ebuild digest on all ebuilds')
     d.add_argument('directory', nargs='?', help='Directory to scan (default: repo root)')
 
@@ -329,6 +429,8 @@ if __name__ == '__main__':
 
     if args.cmd in (None, 'sync'):
         asyncio.run(cmd_sync(args))
+    elif args.cmd == 'clean':
+        cmd_clean(args)
     elif args.cmd == 'digest':
         cmd_digest(args)
     elif args.cmd == 'diff':
