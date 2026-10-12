@@ -1,9 +1,9 @@
-# Copyright 2022-2025 Gentoo Authors
+# Copyright 2022-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{11..14} )
+PYTHON_COMPAT=( python3_{12..14} )
 inherit gnome.org meson python-any-r1 vala virtualx xdg
 
 DESCRIPTION="Building blocks for modern GNOME applications"
@@ -13,15 +13,15 @@ LICENSE="LGPL-2.1+"
 SLOT="1"
 KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc ~ppc64 ~riscv ~x86"
 
-IUSE="doc examples +introspection test +vala"
+IUSE="examples gtk-doc +introspection test +vala"
 REQUIRED_USE="
-	doc? ( introspection )
+	gtk-doc? ( introspection )
 	vala? ( introspection )
 "
 
 RDEPEND="
-	>=dev-libs/glib-2.80.0:2
-	>=gui-libs/gtk-4.19.4:4[introspection?]
+	>=dev-libs/glib-2.84.0:2
+	>=gui-libs/gtk-4.23.1:4[introspection?]
 	dev-libs/appstream:=
 	dev-libs/fribidi
 	introspection? ( >=dev-libs/gobject-introspection-1.83.2:= )
@@ -30,7 +30,7 @@ DEPEND="${RDEPEND}
 "
 BDEPEND="
 	${PYTHON_DEPS}
-	doc? ( >=dev-util/gi-docgen-2021.1 )
+	gtk-doc? ( >=dev-util/gi-docgen-2021.1 )
 	vala? ( $(vala_depend) )
 	dev-util/glib-utils
 	sys-devel/gettext
@@ -46,13 +46,14 @@ src_prepare() {
 
 src_configure() {
 	local emesonargs=(
-		# Never use gi-docgen subproject
+		# Never use gi-docgen subproject, but allow bundled ministream (vendored, static-only)
 		--wrap-mode nofallback
+		--force-fallback-for=ministream
 
 		-Dprofiling=false
 		$(meson_feature introspection)
 		$(meson_use vala vapi)
-		$(meson_use doc documentation)
+		$(meson_use gtk-doc documentation)
 		$(meson_use test tests)
 		$(meson_use examples)
 	)
@@ -66,7 +67,8 @@ src_test() {
 
 src_install() {
 	meson_src_install
-	if use doc; then
-		mv "${ED}"/usr/share/doc/{${PN}-${SLOT},${PF}/html} || die
+	if use gtk-doc; then
+		mkdir -p "${ED}"/usr/share/gtk-doc/html/ || die
+		mv "${ED}"/usr/share/doc/${PN}-${SLOT} "${ED}"/usr/share/gtk-doc/html/ || die
 	fi
 }

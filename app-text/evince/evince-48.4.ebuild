@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -11,8 +11,8 @@ HOMEPAGE="https://apps.gnome.org/Evince/"
 LICENSE="GPL-2+ CC-BY-SA-3.0"
 # subslot = evd3.(suffix of libevdocument3)-evv3.(suffix of libevview3)
 SLOT="0/evd3.4-evv3.3"
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~loong ~ppc ~ppc64 ~riscv ~x86 ~amd64-linux ~x86-linux ~x64-solaris"
-IUSE="X cups djvu dvi gnome keyring gtk-doc +introspection +nautilus postscript +preview tiff +thumbnail xps wayland"
+KEYWORDS="~alpha amd64 ~arm arm64 ~loong ~ppc ~ppc64 ~riscv x86 ~x64-solaris"
+IUSE="X cups djvu dvi gstreamer gnome keyring gtk-doc +introspection postscript spell tiff xps wayland"
 REQUIRED_USE="gtk-doc? ( introspection )"
 
 # atk used in libview
@@ -22,26 +22,29 @@ DEPEND="
 	>=dev-libs/glib-2.44.0:2
 	>=gui-libs/libhandy-1.5.0:1
 	>=dev-libs/libxml2-2.5:2=
-	sys-libs/zlib:=
+	virtual/zlib:=
 	>=x11-libs/gdk-pixbuf-2.40:2
 	>=x11-libs/gtk+-3.22.0:3[X?,cups?,introspection?,wayland?]
 	gnome-base/gsettings-desktop-schemas
 	>=x11-libs/cairo-1.10
 	>=app-text/poppler-22.05.0:=[cairo]
 	>=app-arch/libarchive-3.6.0:=
-	djvu? ( >=app-text/djvu-3.5.22:= )
+	djvu? ( >=app-text/djvu-3.5.29:= )
 	dvi? (
 		>=app-text/libspectre-0.2:=
 		dev-libs/kpathsea:=
 	)
+	gstreamer? (
+		media-libs/gstreamer:1.0
+		media-libs/gst-plugins-base:1.0
+		media-libs/gst-plugins-good:1.0 )
 	gnome? ( gnome-base/gnome-desktop:3= )
 	keyring? ( >=app-crypt/libsecret-0.5 )
-	introspection? ( >=dev-libs/gobject-introspection-1:= )
-	nautilus? ( >=gnome-base/nautilus-43 )
+	introspection? ( >=dev-libs/gobject-introspection-1.82.0-r2:= )
 	postscript? ( >=app-text/libspectre-0.2:= )
+	spell? ( >=app-text/gspell-1.6.0:= )
 	tiff? ( >=media-libs/tiff-4.0:= )
 	xps? ( >=app-text/libgxps-0.2.1:= )
-	media-libs/exempi
 "
 RDEPEND="${DEPEND}
 	gnome-base/gvfs
@@ -53,7 +56,7 @@ BDEPEND="
 		app-text/docbook-xml-dtd:4.3
 	)
 	dev-libs/appstream-glib
-	dev-util/gdbus-codegen
+	>=dev-util/gdbus-codegen-2.80.5-r1
 	dev-util/glib-utils
 	dev-util/itstool
 	>=sys-devel/gettext-0.19.8
@@ -70,12 +73,13 @@ src_configure() {
 	use wayland || append-cppflags -DGENTOO_GTK_HIDE_WAYLAND
 
 	local emesonargs=(
+		-Ddevelopment=false
 		-Dplatform=gnome
-		-Dprofile=default
+
 		-Dviewer=true
-		$(meson_use preview previewer)
-		$(meson_use thumbnail thumbnailer)
-		$(meson_use nautilus)
+		-Dpreviewer=true
+		-Dthumbnailer=true
+		-Dnautilus=false
 
 		-Dcomics=enabled
 		$(meson_feature djvu)
@@ -92,6 +96,8 @@ src_configure() {
 		$(meson_feature keyring)
 		$(meson_feature cups gtk_unix_print)
 		$(meson_feature gnome thumbnail_cache)
+		$(meson_feature gstreamer multimedia)
+		$(meson_feature spell gspell)
 
 		-Dinternal_synctex=true
 

@@ -7,3 +7,5 @@ media-gfx/eog
 =dev-libs/gobject-introspection-1.86.0
 =dev-libs/gobject-introspection-common-1.86.0
 =dev-python/pygobject-3.54.5
+>=gnome-base/nautilus-50.2.2
+>=media-libs/gexiv2-0.16.0

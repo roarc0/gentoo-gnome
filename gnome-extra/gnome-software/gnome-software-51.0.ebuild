@@ -17,11 +17,11 @@ RDEPEND="
 	>=dev-libs/appstream-0.14.0:0=
 	>=x11-libs/gdk-pixbuf-2.32.0:2
 	>=dev-libs/libxmlb-0.3.4:=
-	>=gui-libs/gtk-4.16.0:4
+	>=gui-libs/gtk-4.17.5:4
 	>=dev-libs/glib-2.76.0:2
 	>=dev-libs/json-glib-1.6.0
 	>=net-libs/libsoup-3.0:3.0
-	>=gui-libs/libadwaita-1.6.0:1
+	>=gui-libs/libadwaita-1.8_alpha:1
 	sysprof? ( >=dev-util/sysprof-capture-3.40.1:4 )
 	>=gnome-base/gsettings-desktop-schemas-3.18.0
 	sys-auth/polkit
@@ -38,12 +38,13 @@ RDEPEND="
 	>=gnome-base/gsettings-desktop-schemas-3.18.0
 "
 DEPEND="${RDEPEND}
-	test? ( dev-libs/libglib-testing )
+	>=dev-libs/libglib-testing-0.2.0
 "
 BDEPEND="
 	>=dev-build/meson-1.6.0
 	dev-libs/libxml2:2
 	>=dev-util/gdbus-codegen-2.80.5-r1
+	dev-util/glib-utils
 	>=sys-devel/gettext-0.19.8
 	virtual/pkgconfig
 	gtk-doc? (
@@ -52,9 +53,6 @@ BDEPEND="
 	)
 "
 
-PATCHES=(
-	"${FILESDIR}/Disable-gs-self-test-flatpak.patch"
-)
 
 src_prepare() {
 	default
@@ -103,7 +101,7 @@ src_configure() {
 }
 
 src_test() {
-	virtx dbus-run-session meson test -C "${BUILD_DIR}" || die
+	virtx dbus-run-session meson test -C "${BUILD_DIR}" --print-errorlogs || die
 }
 
 pkg_postinst() {
