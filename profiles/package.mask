@@ -1,1 +1,0 @@
-=gnome-base/nautilus-51.0.1
