@@ -161,7 +161,7 @@ def copy_package(atom):
 
 custom_modules = [m for m in dir(custom) if not m.startswith('__')]
 
-async def _check_atom(atom, slot, sem, bootstrap_missing=False, pretend=False):
+async def _check_atom(atom, slot, sem, bootstrap_missing=False, pretend=False, slot_bumps=None):
     async with sem:
         pkg_name = atom.split("/")[1]
         mod_name = pkg_name.replace("-", "_")
@@ -234,7 +234,10 @@ async def _check_atom(atom, slot, sem, bootstrap_missing=False, pretend=False):
         if slot and last_ftp_version and last_ftp_version <= last_local_version and not local_missing:
             newer_slots = await get_newer_ftp_slots(pkg_name, slot)
             if newer_slots:
-                status += f" {YELLOW}[newer slot {newer_slots[-1]} on FTP — update apps]{END}"
+                new_slot = str(newer_slots[-1])
+                status += f" {YELLOW}[newer slot {new_slot} on FTP]{END}"
+                if slot_bumps is not None:
+                    slot_bumps.append((atom, slot, new_slot))
 
         print(f"{CYAN}{prefix}{END} {status}")
         if mod_name in custom_modules:
@@ -250,8 +253,43 @@ async def cmd_sync(args):
     sem = asyncio.Semaphore(8)
     bootstrap_missing = getattr(args, 'bootstrap_missing', False)
     pretend = getattr(args, 'pretend', False)
-    await asyncio.gather(*(_check_atom(atom, slot, sem, bootstrap_missing, pretend) for atom, slot in atoms))
+    slot_bumps = []  # populated by _check_atom: (atom, old_slot, new_slot)
+    await asyncio.gather(*(_check_atom(atom, slot, sem, bootstrap_missing, pretend, slot_bumps) for atom, slot in atoms))
     print(f"\nFinished in {datetime.now() - start}")
+
+    if slot_bumps and not pretend:
+        print(f"\n{BOLD}Slot updates available:{END}")
+        for atom, old, new in slot_bumps:
+            print(f"  {CYAN}{atom}{END}  {old} → {YELLOW}{new}{END}")
+        print()
+        if _prompt("Update these slots in apps?"):
+            _apply_slot_bumps(slot_bumps)
+            print("apps updated — run sync again to fetch new versions")
+
+
+def _apply_slot_bumps(bumps):
+    with open(APPS_FILE) as f:
+        lines = f.readlines()
+
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            new_lines.append(line)
+            continue
+        parts = stripped.split(':')
+        a = parts[0].strip()
+        s = parts[1].strip() if len(parts) == 2 else None
+        a, s = normalize_atom_entry(a, s)
+        match = next(((atom, old, new) for atom, old, new in bumps if atom == a and old == s), None)
+        if match:
+            _, _, new_slot = match
+            new_lines.append(f"{a}:{new_slot}\n")
+        else:
+            new_lines.append(line)
+
+    with open(APPS_FILE, 'w') as f:
+        f.writelines(new_lines)
 
 # ── diff subcommand ──────────────────────────────────────────────────────────
 
