@@ -1,3 +1,15 @@
+# Tracked packages for the gentoo-gnome overlay.
+# Each entry is an atom with an optional slot specifying the FTP slot to track.
+#
+# Slot formats:
+#   :51         GNOME app major version (integer)
+#   :4.24       library major.minor — even minor = stable series, odd = dev/unstable
+#   :2.90       same; 2.90 is stable, 2.89 would be dev
+#   (no slot)   latest available on FTP with no slot filtering
+#
+# When a library moves from an odd slot (dev) to the next even slot (stable),
+# update the slot here so gup sync picks up the new series.
+
 x11-wm/mutter:51
 app-text/yelp-tools:51
 app-editors/gnome-text-editor:51

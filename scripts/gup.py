@@ -3,6 +3,7 @@
 
 Subcommands:
         add     Append/validate atoms in apps
+        remove  Remove atom from apps and delete its ebuilds
         sync    Check/update atoms from apps (supports dry-run with --pretend)
   clean   Remove older ebuilds and unreferenced files/, asking permission
   digest  Regenerate Manifests via 'ebuild digest'
@@ -12,15 +13,16 @@ import argparse, asyncio, os, re, shutil, subprocess, sys
 from datetime import datetime
 from os import path
 from glob import glob
-from handler.version import LOCAL_PREFIX, get_last_ftp_version, get_last_local_version, Version
+from handler.version import LOCAL_PREFIX, get_last_ftp_version, get_last_local_version, get_newer_ftp_slots, Version
 from handler.ebuild import create_ebuild
 from handler import custom
 
 PORTAGE_PREFIX = '/var/lib/repos/gentoo'
 OVERLAY_ROOT   = path.dirname(LOCAL_PREFIX)   # /var/lib/repos/gnome-next
 APPS_FILE      = path.join(LOCAL_PREFIX, 'apps')
-ebuild_re      = re.compile(r'-(\d+(\.\d+)*(_rc\d*|_alpha\d*|_beta\d*)?(-r\d+)?)')
+ebuild_re          = re.compile(r'-(\d+(\.\d+)*(_rc\d*|_alpha\d*|_beta\d*)?(-r\d+)?)')
 atom_slot_suffix_re = re.compile(r'^(?P<cat>[^/]+)/(?P<pkg>.+)-(?P<slot>\d+(?:\.\d+)*(?:-r\d+)?)$')
+filesdir_re        = re.compile(r'\$\{FILESDIR\}/([^\s"\'\\]+)')
 
 # Colors
 GREEN  = '\033[92m'
@@ -227,6 +229,13 @@ async def _check_atom(atom, slot, sem, bootstrap_missing=False, pretend=False):
             else:
                 status += f" {RED}[DIGEST FAIL]{END}"
 
+        # Slot-drift: warn when current slot is up-to-date but a newer slot exists on FTP.
+        # Common case: odd-minor dev slot (4.23) superseded by even-minor stable (4.24).
+        if slot and last_ftp_version and last_ftp_version <= last_local_version and not local_missing:
+            newer_slots = await get_newer_ftp_slots(pkg_name, slot)
+            if newer_slots:
+                status += f" {YELLOW}[newer slot {newer_slots[-1]} on FTP — update apps]{END}"
+
         print(f"{CYAN}{prefix}{END} {status}")
         if mod_name in custom_modules:
             await getattr(custom, mod_name).run(last_ftp_version)
@@ -287,6 +296,75 @@ def cmd_diff(args):
     subprocess.Popen(['code', '--diff', gentoo_file, local_file])
     return 0
 
+# ── remove subcommand ────────────────────────────────────────────────────────
+
+def cmd_remove(args):
+    raw = (args.atom or '').strip()
+    if not raw or '/' not in raw:
+        print(f'Error: remove requires an atom like category/package or category/package:slot')
+        return 1
+
+    parts = raw.split(':')
+    atom_raw = parts[0].strip()
+    slot_raw = parts[1].strip() if len(parts) == 2 else None
+    atom, slot = normalize_atom_entry(atom_raw, slot_raw)
+
+    existing = read_atoms()
+    matches = [(a, s) for a, s in existing if a == atom and (slot is None or s == slot)]
+
+    if not matches:
+        print(f"Not found in apps: {raw}")
+        return 1
+
+    # Show what will be removed from apps
+    print(f"\n{BOLD}From apps:{END}")
+    for a, s in matches:
+        print(f"  {RED}-{END} {CYAN}{a}:{s}{END}" if s else f"  {RED}-{END} {CYAN}{a}{END}")
+
+    # Show ebuilds that exist
+    pkg_dir = path.join(OVERLAY_ROOT, atom)
+    ebuilds = sorted(glob(path.join(pkg_dir, '*.ebuild'))) if path.exists(pkg_dir) else []
+    if ebuilds:
+        print(f"\n{BOLD}Ebuilds to delete:{END}")
+        for eb in ebuilds:
+            print(f"  {RED}-{END} {eb}")
+
+    print()
+    if not _prompt(f"Remove {atom} from apps" + (" and delete its ebuilds?" if ebuilds else "?")):
+        print("Aborted.")
+        return 0
+
+    # Rewrite apps without matched entries
+    with open(APPS_FILE) as f:
+        lines = f.readlines()
+
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            new_lines.append(line)
+            continue
+        parts2 = stripped.split(':')
+        la, ls = normalize_atom_entry(parts2[0], parts2[1] if len(parts2) == 2 else None)
+        if la == atom and (slot is None or ls == slot):
+            continue
+        new_lines.append(line)
+
+    with open(APPS_FILE, 'w') as f:
+        f.writelines(new_lines)
+    print(f"Removed from apps: {atom}")
+
+    if ebuilds:
+        for eb in ebuilds:
+            os.remove(eb)
+        manifest = path.join(pkg_dir, 'Manifest')
+        if path.exists(manifest):
+            os.remove(manifest)
+        print(f"Deleted {len(ebuilds)} ebuild(s) and Manifest")
+
+    return 0
+
+
 # ── clean subcommand ──────────────────────────────────────────────────────────
 
 def _prompt(msg):
@@ -343,10 +421,14 @@ def cmd_clean(args):
 
             files_dir = path.join(pkg_dir, 'files')
             if path.isdir(files_dir):
-                keep_content = ''.join(open(eb).read() for eb in keep_ebuilds)
+                referenced = set()
+                for eb in keep_ebuilds:
+                    with open(eb) as f:
+                        for m in filesdir_re.finditer(f.read()):
+                            referenced.add(m.group(1))
                 for fname in sorted(os.listdir(files_dir)):
                     fpath = path.join(files_dir, fname)
-                    if path.isfile(fpath) and fname not in keep_content:
+                    if path.isfile(fpath) and fname not in referenced:
                         to_delete_files.append((atom, fpath))
 
     if not to_delete_ebuilds and not to_delete_files:
@@ -405,6 +487,9 @@ def build_parser():
     a = sub.add_parser('add', help='Append atom to apps after validating it exists in Gentoo main repo')
     a.add_argument('atom', help='Atom in category/package or category/package:slot format')
 
+    r = sub.add_parser('remove', help='Remove atom from apps and delete its ebuilds')
+    r.add_argument('atom', help='Atom in category/package or category/package:slot format')
+
     sync_cmd = sub.add_parser('sync', help='Check FTP and update overlay entries from apps')
     sync_cmd.add_argument('--pretend', action='store_true', help='Dry run; show what would change without writing files')
     sync_cmd.add_argument('--bootstrap-missing', action='store_true', help='Allow bootstrapping missing package dirs from Gentoo when FTP is newer')
@@ -426,6 +511,9 @@ if __name__ == '__main__':
 
     if args.cmd == 'add':
         sys.exit(cmd_add(args))
+
+    if args.cmd == 'remove':
+        sys.exit(cmd_remove(args))
 
     if args.cmd in (None, 'sync'):
         asyncio.run(cmd_sync(args))

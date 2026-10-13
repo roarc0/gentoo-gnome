@@ -1,5 +1,5 @@
 from os import path, makedirs
-import shutil
+import os, shutil, tempfile
 from asyncio.subprocess import PIPE, STDOUT, create_subprocess_shell
 from glob import glob
 
@@ -29,6 +29,13 @@ async def create_ebuild(atom, version: Version):
             print(f"Error: Could not find ebuild for {pkg_name} version {last_overlay_version} in {local_path}")
             return 1
 
-    out = await create_subprocess_shell("cd %s && sudo ebuild %s digest" % (local_path, ebuild_name),
-                                        stdin=PIPE, stdout=PIPE, stderr=STDOUT)
-    return await out.wait()
+    distdir = tempfile.mkdtemp()
+    try:
+        env = {**os.environ, 'DISTDIR': distdir}
+        out = await create_subprocess_shell(
+            f"cd {local_path} && ebuild {ebuild_name} digest",
+            env=env, stdin=PIPE, stdout=PIPE, stderr=STDOUT
+        )
+        return await out.wait()
+    finally:
+        shutil.rmtree(distdir, ignore_errors=True)

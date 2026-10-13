@@ -2,6 +2,7 @@ from os import path, listdir
 from itertools import zip_longest
 from typing import Optional
 
+import asyncio
 import aiohttp
 import re
 from .parser import GParser
@@ -12,6 +13,9 @@ PREFIX = 'https://download.gnome.org/sources/'
 
 PORTAGE_PREFIX = '/var/lib/repos/gentoo'
 LOCAL_PREFIX = path.dirname(path.dirname(__file__))
+
+FTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
+_RETRY_DELAYS = (0, 1, 3)  # 3 attempts, increasing backoff
 
 class Version:
     def __init__(self, vstring):
@@ -87,47 +91,71 @@ def is_float(value):
     except ValueError:
         return False
 
-async def get_last_ftp_version(atom, slot=None) -> Optional[Version]:
-    async with aiohttp.ClientSession() as session:
-        async with session.get(PREFIX + atom + "/") as resp:
-            if resp.status < 200 or resp.status >= 400:
-                return None
-            html = await resp.text()
-            parser = GParser()
-            parser.feed(html)
 
-        if slot:
-            slot = Version(re.sub(r'-r\d+$', '', slot))
-        available_slots = []
-        for link in parser.links:
-            if not is_float(link):
-                continue
-            available_slots.append(Version(link))
-        available_slots.sort()
+async def _fetch(session: aiohttp.ClientSession, url: str) -> Optional[str]:
+    """GET url with retries; returns text or None on failure."""
+    for i, delay in enumerate(_RETRY_DELAYS):
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            async with session.get(url) as resp:
+                if resp.status < 200 or resp.status >= 400:
+                    return None
+                return await resp.text()
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            if i == len(_RETRY_DELAYS) - 1:
+                return None
+    return None
+
+
+async def _get_ftp_slots(session: aiohttp.ClientSession, pkg_name: str) -> list:
+    """Return sorted list of Version objects for all FTP slots of pkg_name."""
+    html = await _fetch(session, PREFIX + pkg_name + "/")
+    if html is None:
+        return []
+    parser = GParser()
+    parser.feed(html)
+    return sorted(Version(link) for link in parser.links if is_float(link))
+
+
+async def get_last_ftp_version(pkg_name, slot=None) -> Optional[Version]:
+    async with aiohttp.ClientSession(timeout=FTP_TIMEOUT) as session:
+        available_slots = await _get_ftp_slots(session, pkg_name)
         if not available_slots:
             return None
-        if slot:
-            if slot in available_slots:
-                atom_url = PREFIX + atom + "/" + str(slot) + "/"
-            else:
-                matching_slots = [s for s in available_slots if slot >= s]
-                last_slot = matching_slots[-1] if matching_slots else available_slots[-1]
-                atom_url = PREFIX + atom + "/" + str(last_slot) + "/"
-        else:
-            last_slot = available_slots[-1]
-            atom_url = PREFIX + atom + "/" + str(last_slot) + "/"
 
-        async with session.get(atom_url) as resp:
-            if resp.status < 200 or resp.status >= 400:
-                return None
-            html = await resp.text()
-            parser.feed(html)
+        if slot:
+            slot_v = Version(re.sub(r'-r\d+$', '', slot))
+            if slot_v in available_slots:
+                chosen_slot = slot_v
+            else:
+                matching = [s for s in available_slots if slot_v >= s]
+                chosen_slot = matching[-1] if matching else available_slots[-1]
+        else:
+            chosen_slot = available_slots[-1]
+
+        html = await _fetch(session, PREFIX + pkg_name + "/" + str(chosen_slot) + "/")
+        if html is None:
+            return None
+
+        parser = GParser()
+        parser.feed(html)
         versions = []
         for al in parser.links:
             if str(al).endswith('tar.xz') or str(al).endswith('tar.gz'):
-                versions.append(Version(ftp_version_regexp.findall(str(al))[0][0]))
+                m = ftp_version_regexp.findall(str(al))
+                if m:
+                    versions.append(Version(m[0][0]))
         versions.sort()
-        return versions[-1]
+        return versions[-1] if versions else None
+
+
+async def get_newer_ftp_slots(pkg_name: str, current_slot: str) -> list:
+    """Return FTP slot Versions strictly newer than current_slot."""
+    slot_v = Version(re.sub(r'-r\d+$', '', current_slot))
+    async with aiohttp.ClientSession(timeout=FTP_TIMEOUT) as session:
+        available_slots = await _get_ftp_slots(session, pkg_name)
+    return [s for s in available_slots if s > slot_v]
 
 
 def get_last_local_version(atom):
