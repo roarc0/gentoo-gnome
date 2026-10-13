@@ -13,40 +13,30 @@ LICENSE="LGPL-2+"
 SLOT="0"
 KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 
-IUSE="debug examples libthai gtk-doc +introspection sysprof test X"
+IUSE="debug libthai gtk-doc +introspection sysprof"
 REQUIRED_USE="gtk-doc? ( introspection )"
-RESTRICT="!test? ( test )"
 
 RDEPEND="
 	>=dev-libs/glib-2.88:2[${MULTILIB_USEDEP}]
 	>=dev-libs/fribidi-1.0.6[${MULTILIB_USEDEP}]
 	>=media-libs/harfbuzz-11.0.0:=[glib(+),introspection?,truetype(+),${MULTILIB_USEDEP}]
 	>=media-libs/fontconfig-2.17.0:1.0[${MULTILIB_USEDEP}]
-	>=x11-libs/cairo-1.18.0[X?,${MULTILIB_USEDEP}]
+	>=x11-libs/cairo-1.18.0[${MULTILIB_USEDEP}]
 	>=media-libs/freetype-2.5.0.1:2[harfbuzz,png,${MULTILIB_USEDEP}]
 	introspection? ( >=dev-libs/gobject-introspection-1.83.2:= )
 	libthai? ( dev-libs/libthai:= )
 	sysprof? ( >=dev-util/sysprof-capture-3.40.1:4[${MULTILIB_USEDEP}] )
-	X? (
-		>=x11-libs/libX11-1.6.2[${MULTILIB_USEDEP}]
-		>=x11-libs/libXft-2.3.1-r1[${MULTILIB_USEDEP}]
-		>=x11-libs/libXrender-0.9.8[${MULTILIB_USEDEP}]
-	)
 "
-DEPEND="${RDEPEND}
-	X? ( x11-base/xorg-proto )
-"
+DEPEND="${RDEPEND}"
 BDEPEND="
 	dev-util/glib-utils
 	virtual/pkgconfig
-	dev-python/docutils
 	gtk-doc? (
 		introspection? (
 			>=dev-libs/gobject-introspection-1.83.2
 			dev-util/gi-docgen
 		)
 	)
-	test? ( media-fonts/cantarell )
 "
 
 src_prepare() {
@@ -60,8 +50,6 @@ src_prepare() {
 	# Skip broken test: https://gitlab.gnome.org/GNOME/pango/-/issues/677
 	rm tests/layouts/valid-20.layout || die
 
-	# Often breaks w/ new harfbuzz (bug #960222)
-	sed -i -e '/test-font-data/d' tests/meson.build || die
 }
 
 multilib_src_configure() {
@@ -77,24 +65,14 @@ multilib_src_configure() {
 
 		$(meson_native_use_bool gtk-doc documentation)
 		$(meson_native_use_feature introspection)
-		-Dman-pages=true
-		$(meson_use test build-testsuite)
-		-Dbuild-examples=false
-		-Dfontconfig=enabled
 		$(meson_feature sysprof)
 		$(meson_native_use_feature libthai)
 		-Dcairo=enabled
-		$(meson_feature X xft)
-		-Dfreetype=enabled
 	)
 	meson_src_configure
 }
 
 multilib_src_install_all() {
-	if use examples; then
-		dodoc -r examples
-	fi
-
 	if use gtk-doc; then
 		mkdir -p "${ED}"/usr/share/gtk-doc/html/ || die
 		mv "${ED}"/usr/share/doc/Pango* "${ED}"/usr/share/gtk-doc/html/ || die
