@@ -1,0 +1,2 @@
+# pango 1.90+ (pango2 API) requires coordinated gtk4 rebuild — mask until ready
+>=x11-libs/pango-1.90.0

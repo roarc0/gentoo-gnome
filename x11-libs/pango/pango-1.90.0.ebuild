@@ -58,6 +58,9 @@ multilib_src_configure() {
 	else
 		append-cflags -DG_DISABLE_CAST_CHECKS
 	fi
+	# pangocairo-font.c uses FreeType directly but upstream meson.build
+	# doesn't declare it as an explicit dep for the pangocairo component
+	append-ldflags -lfreetype
 
 	local emesonargs=(
 		# Never use gi-docgen subproject
@@ -77,4 +80,19 @@ multilib_src_install_all() {
 		mkdir -p "${ED}"/usr/share/gtk-doc/html/ || die
 		mv "${ED}"/usr/share/doc/Pango* "${ED}"/usr/share/gtk-doc/html/ || die
 	fi
+	# ponytail: compat shims so old .pc files (gtk4.pc, librsvg-2.0.pc, …)
+	# resolve until they're rebuilt against pango2; pangoft2 was dropped as a
+	# separate sub-library in 2.0 but the compat .so still ships
+	dosym pango2.pc /usr/lib64/pkgconfig/pango.pc
+	dosym pangocairo2.pc /usr/lib64/pkgconfig/pangocairo.pc
+	cat > "${ED}"/usr/lib64/pkgconfig/pangoft2.pc <<-EOF
+		prefix=/usr
+		libdir=\${prefix}/lib64
+		Name: Pango FreeType
+		Description: FreeType font support for Pango (compat stub for pango-2.0)
+		Version: 1.90.0
+		Requires: pango2
+		Libs: -L\${libdir} -lpangoft2-1.0
+		Cflags:
+	EOF
 }
